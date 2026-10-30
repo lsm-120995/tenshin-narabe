@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Python 版 (公開しない)
+kururin.py
+sea_sort.py
+*.bat

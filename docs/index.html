@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="蒸籠に隠れた点心を列ごとにそろえるパズル。">
+<meta name="theme-color" content="#17443d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="点心ならべ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }</style>
+<title>点心ならべ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaisei+Tokumin:wght@700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+  /* Layout: a teahouse table seen from above. Ten towers of bamboo steamers, with a serving tray along the top. */
+  :root {
+    --table: #17443d;
+    --table-deep: #10332e;
+    --lane: #1f564d;
+    --tray: #2a665b;
+    --tray-used: #8f3a2c;
+    --steam: #f6ecd6;
+    --steam-dim: #b7cdbf;
+    --gold: #f2bf4b;
+    --mint: #8fe3c2;
+    --lacquer: #a8392a;
+    --display: "Kaisei Tokumin", "Hiragino Mincho ProN", "Yu Mincho", serif;
+    --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --cw: 33px;
+    --ch: 36px;
+    --gap: 3px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--table);
+    color: var(--steam);
+    font-family: var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .app {
+    height: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-block: 8px;
+    position: relative;
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font: 700 22px/1.2 var(--display); letter-spacing: .08em; white-space: nowrap; }
+  .stats { display: flex; gap: 12px; font-size: 13px; color: var(--steam-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stats b { color: var(--steam); font-size: 16px; }
+  .stats .main b { color: var(--gold); }
+  .row { display: grid; grid-template-columns: repeat(10, var(--cw)); gap: var(--gap); justify-content: center; }
+  .slot, .col {
+    appearance: none; border: 0; padding: 0; cursor: pointer; background: var(--lane);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .slots { grid-template-columns: repeat(5, 1fr); }
+  .slot { height: 44px; background: var(--tray); transition: background .2s; }
+  .slot .tile { height: 38px; }
+  @media (min-width: 560px) { .slots { grid-template-columns: repeat(10, var(--cw)); } }
+  .slot.used { background: var(--tray-used); }
+  .slot .num { position: absolute; left: 3px; top: 1px; font-size: 9px; opacity: .7; font-variant-numeric: tabular-nums; }
+  .slot.has .num { display: none; }
+  .status { min-height: 18px; font-size: 13px; line-height: 18px; color: var(--steam-dim); text-align: center; }
+  .board { flex: 1 1 auto; min-height: 0; align-content: start; position: relative; }
+  .col { flex-direction: column-reverse; justify-content: flex-start; height: calc(var(--ch) * 12); }
+  .tile { width: 100%; height: var(--ch); display: flex; align-items: center; justify-content: center; flex: none; transition: transform .12s ease-out; }
+  .tile svg { height: 100%; width: 100%; display: block; filter: drop-shadow(0 1px 0 rgba(0,0,0,.45)); }
+  .tile.lifted { transform: translateY(-3px); }
+  .tile.lifted svg { filter: drop-shadow(0 0 0 var(--gold)) drop-shadow(0 0 3px var(--gold)); }
+  .tile.open svg { animation: lift-lid .32s ease-out; }
+  @keyframes lift-lid { from { transform: scale(.72) rotate(-10deg); opacity: .4; } to { transform: none; opacity: 1; } }
+  .spot {
+    width: calc(100% - 4px); height: calc(var(--ch) - 4px); margin: 2px; flex: none;
+    border: 2px dashed var(--mint); border-radius: 50%;
+  }
+  .slot .spot { position: absolute; height: calc(100% - 4px); border-radius: 8px; }
+  .bar { display: flex; gap: 8px; justify-content: center; }
+  .bar button {
+    appearance: none; cursor: pointer; flex: 1 1 0; max-width: 170px; min-height: 42px; padding: 0 10px;
+    border: 1px solid var(--tray); border-radius: 10px; background: var(--table-deep); font-size: 14px; font-weight: 700;
+  }
+  .bar button.primary { background: var(--lacquer); border-color: var(--lacquer); }
+  .sheet {
+    position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    background: rgba(9, 28, 25, .78);
+  }
+  .card {
+    width: min(100%, 420px); max-height: 100%; overflow-y: auto; background: var(--steam); color: #33271a;
+    border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .card h2 { margin: 0; font: 700 22px/1.3 var(--display); text-wrap: balance; }
+  .card p { margin: 0; font-size: 14px; line-height: 1.65; }
+  .card ul { margin: 0; padding-left: 1.2em; font-size: 14px; line-height: 1.65; }
+  .card .bar button { color: var(--steam); }
+  .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 6px; font-size: 11px; }
+  .menu span { display: flex; align-items: center; gap: 4px; }
+  .menu svg { width: 26px; height: 26px; flex: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .tile, .slot { transition: none; }
+    .tile.open svg { animation: none; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="basket">
+      <circle cx="24" cy="24" r="23" fill="#b9853f" stroke="#6e4619" stroke-width="1.5"/>
+      <circle cx="24" cy="24" r="18.5" fill="#f5e6c5" stroke="#8a5e28"/>
+    </g>
+    <symbol id="lid" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="23" fill="#cf9f58" stroke="#6e4619" stroke-width="1.5"/>
+      <g fill="none" stroke="#9c6f30" stroke-width="1.3">
+        <circle cx="24" cy="24" r="18.5"/><circle cx="24" cy="24" r="13"/><circle cx="24" cy="24" r="7.5"/>
+        <path d="M24 5.5v37M5.5 24h37M11 11l26 26M37 11 11 37"/>
+      </g>
+      <circle cx="24" cy="24" r="4.5" fill="#7d5220" stroke="#5a3a14"/>
+    </symbol>
+    <symbol id="d0" viewBox="0 0 48 48"><use href="#basket"/>
+      <path d="M12 31C10 22 18 16 24 12c6 4 14 10 12 19-5 5-19 5-24 0Z" fill="#fffaf0" stroke="#6e5a3a" stroke-width="1.3"/>
+      <path d="M24 13 16 32M24 13l-3 21M24 13l3 21M24 13l8 19" fill="none" stroke="#c4ae85" stroke-width="1.2"/>
+      <circle cx="24" cy="13" r="2.2" fill="#fffaf0" stroke="#6e5a3a"/>
+    </symbol>
+    <symbol id="d1" viewBox="0 0 48 48"><use href="#basket"/>
+      <path d="M9 29c5-13 25-13 30 0-6 6-24 6-30 0Z" fill="#f4d67d" stroke="#6e4f1c" stroke-width="1.3"/>
+      <path d="M11 31c7 4 19 4 26 0-6 5-20 5-26 0Z" fill="#b5651d" stroke="#6e4f1c"/>
+      <path d="M15 24l-1-4M20 22l-.5-4M25 21.500V17.500M30 22l.5-4M34 24l1-4" stroke="#6e4f1c" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="d2" viewBox="0 0 48 48"><use href="#basket"/>
+      <path d="M26 33c6 3 11 1 13-3-5-2-10-1-13 3ZM22 33c-6 3-11 1-13-3 5-2 10-1 13 3Z" fill="#4f9a4b" stroke="#2a5a28"/>
+      <path d="M24 35c-11-2-14-13-8-19 3-3 7-3 8 1 1-4 5-4 8-1 6 6 3 17-8 19Z" fill="#f59aa3" stroke="#8a3f4a" stroke-width="1.3"/>
+      <path d="M24 17c-2 5-2 11 0 18" fill="none" stroke="#c9606e" stroke-width="1.3"/>
+    </symbol>
+    <symbol id="d3" viewBox="0 0 48 48"><use href="#basket"/>
+      <circle cx="24" cy="24" r="13" fill="#a8622a" stroke="#54300f" stroke-width="1.3"/>
+      <g fill="#fff3d0">
+        <ellipse cx="19" cy="17" rx="2" ry="1.200" transform="rotate(30 19 17)"/>
+        <ellipse cx="27" cy="16" rx="2" ry="1.200" transform="rotate(-20 27 16)"/>
+        <ellipse cx="32" cy="23" rx="2" ry="1.200" transform="rotate(70 32 23)"/>
+        <ellipse cx="17" cy="25" rx="2" ry="1.200" transform="rotate(100 17 25)"/>
+        <ellipse cx="24" cy="24" rx="2" ry="1.200" transform="rotate(10 24 24)"/>
+        <ellipse cx="29" cy="31" rx="2" ry="1.200" transform="rotate(-40 29 31)"/>
+        <ellipse cx="21" cy="32" rx="2" ry="1.200" transform="rotate(40 21 32)"/>
+      </g>
+    </symbol>
+    <symbol id="d4" viewBox="0 0 48 48"><use href="#basket"/>
+      <circle cx="24" cy="24" r="14.500" fill="#d39a4d" stroke="#6e4619" stroke-width="1.3" stroke-dasharray="3.500 1.200"/>
+      <circle cx="24" cy="24" r="10.500" fill="#fbdc3c" stroke="#a9781f"/>
+      <path d="M20 21c2-2 5-2 6 0s-3 4-5 3-2-2-1-3ZM28 27c1-1 3 0 3 1s-2 2-3 1 0-2 0-2Z" fill="#b5651d"/>
+    </symbol>
+    <symbol id="d5" viewBox="0 0 48 48"><use href="#basket"/>
+      <g stroke="#6a3510" stroke-width="1.3">
+        <rect x="9" y="15" width="30" height="9" rx="4.500" fill="#dd8a2e" transform="rotate(-18 24 19.500)"/>
+        <rect x="9" y="25" width="30" height="9" rx="4.500" fill="#e79a3c" transform="rotate(-18 24 29.500)"/>
+      </g>
+      <path d="M17 19l1 5M24 17l1 5M31 14l1 5M17 29l1 5M24 27l1 5M31 24l1 5" stroke="#8c4a18" stroke-width="1.200" fill="none"/>
+    </symbol>
+    <symbol id="d6" viewBox="0 0 48 48"><use href="#basket"/>
+      <path d="M12 20c-1 7 1 13 4 16 5 2 11 2 16 0 3-3 5-9 4-16Z" fill="#f7d85b" stroke="#7a6014" stroke-width="1.3"/>
+      <ellipse cx="24" cy="19" rx="13" ry="7" fill="#e77d5c" stroke="#7a3a22" stroke-width="1.3"/>
+      <circle cx="24" cy="18" r="3.500" fill="#46a047" stroke="#245a25"/>
+      <path d="M17 26v7M24 27v8M31 26v7" stroke="#b89a2a" stroke-width="1.300" fill="none"/>
+    </symbol>
+    <symbol id="d7" viewBox="0 0 48 48"><use href="#basket"/>
+      <circle cx="24" cy="24" r="15" fill="#3a7cc7" stroke="#1d436f" stroke-width="1.3"/>
+      <circle cx="24" cy="24" r="10.500" fill="#fffef6" stroke="#1d436f"/>
+      <path d="M24 15 33 24 24 33 15 24Z" fill="none" stroke="#cfc7ad" stroke-width="1.200"/>
+      <circle cx="24" cy="24" r="2.800" fill="#d3322c" stroke="#7d1a16"/>
+    </symbol>
+    <symbol id="d8" viewBox="0 0 48 48"><use href="#basket"/>
+      <path d="M24 9c2 0 3 1 4 3l10 19c1 3 0 5-3 5H13c-3 0-4-2-3-5l10-19c1-2 2-3 4-3Z" fill="#4d9b4c" stroke="#234f23" stroke-width="1.3"/>
+      <path d="M24 10 18 36M24 10l6 26" fill="none" stroke="#2f6e30" stroke-width="1.200"/>
+      <path d="M13.500 27h21M24 10v26" stroke="#f5e6c5" stroke-width="1.800" fill="none"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app" id="app">
+  <header>
+    <h1>点心ならべ</h1>
+    <div class="stats">
+      <span class="main">お盆 <b id="uses">0</b> 回</span>
+      <span>手数 <b id="moves">0</b></span>
+      <span>最少 <b id="best">–</b></span>
+    </div>
+  </header>
+  <div class="row slots" id="slots" role="group" aria-label="お盆"></div>
+  <div class="status" id="status" aria-live="polite"></div>
+  <div class="row board" id="board" role="group" aria-label="蒸籠の列"></div>
+  <div class="bar">
+    <button id="restart" type="button">やり直す</button>
+    <button id="fresh" type="button">新しい配置</button>
+    <button id="rules" type="button">遊び方</button>
+  </div>
+  <div class="sheet" id="sheet" hidden></div>
+</div>
+
+<script id="logic">
+  const KINDS = ["小籠包", "焼き餃子", "桃まん", "胡麻団子", "エッグタルト", "春巻き", "焼売", "杏仁豆腐", "ちまき"];
+  const COLS = 10;   // 1 列は最初から空
+  const CAP = 12;
+  const SLOTS = 10;
+  const HINTS = 12;  // 最初からふたが開いている蒸籠の数
+
+  function mulberry32(a) {
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(list, rng) {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }
+
+  // columns[c] は下から上の順。各カードは [種類, 表か]
+  function deal(seed) {
+    const rng = mulberry32(seed);
+    const tiles = [];
+    KINDS.forEach((_, k) => { for (let n = 0; n < CAP; n++) tiles.push(k); });
+    shuffle(tiles, rng);
+    const columns = [];
+    for (let c = 0; c < COLS; c++) {
+      columns.push(tiles.slice(c * CAP, (c + 1) * CAP).map(k => [k, false]));
+    }
+    const spots = [];
+    for (let c = 0; c < KINDS.length; c++) for (let r = 0; r < CAP - 1; r++) spots.push([c, r]);
+    shuffle(spots, rng).slice(0, HINTS).forEach(([c, r]) => { columns[c][r][1] = true; });
+    columns.slice(0, KINDS.length).forEach(col => { col[col.length - 1][1] = true; });
+    return { seed, columns, slots: Array(SLOTS).fill(null), used: Array(SLOTS).fill(false), moves: 0, uses: 0, scored: false };
+  }
+
+  // 場所は { col: i } か { slot: i } で表す
+  const same = (a, b) => !!a && !!b && a.col === b.col && a.slot === b.slot;
+  const allSpots = () => [
+    ...Array.from({ length: COLS }, (_, col) => ({ col })),
+    ...Array.from({ length: SLOTS }, (_, slot) => ({ slot })),
+  ];
+
+  function topOf(g, src) {
+    if (src.col === undefined) return g.slots[src.slot];
+    const col = g.columns[src.col];
+    return col.length ? col[col.length - 1][0] : null;
+  }
+
+  // 上から続く、表向きで同じ種類のカードの枚数
+  function runLength(g, i) {
+    const col = g.columns[i];
+    let n = 0;
+    while (n < col.length && col[col.length - 1 - n][1] && col[col.length - 1 - n][0] === col[col.length - 1][0]) n++;
+    return n;
+  }
+
+  function canMove(g, src, dst) {
+    const tile = topOf(g, src);
+    if (tile === null || same(src, dst)) return false;
+    if (dst.col === undefined) return src.col !== undefined && g.slots[dst.slot] === null;
+    const col = g.columns[dst.col];
+    return !col.length || (col.length < CAP && col[col.length - 1][0] === tile);
+  }
+
+  // そろった列を空の列へ移すのは意味がないので、手として数えない
+  function pointless(g, src, dst) {
+    if (src.col === undefined || dst.col === undefined || g.columns[dst.col].length) return false;
+    const col = g.columns[src.col];
+    return col.every(t => t[0] === col[0][0]);
+  }
+
+  function solved(g) {
+    return g.slots.every(s => s === null) &&
+      g.columns.every(col => !col.length || (col.length === CAP && col.every(t => t[0] === col[0][0])));
+  }
+
+  function stuck(g) {
+    if (solved(g)) return false;
+    const spots = allSpots();
+    return !spots.some(s => spots.some(d => canMove(g, s, d) && !pointless(g, s, d)));
+  }
+
+  // 動かせたら true。列から列へは、つながった同じカードを入るだけまとめて動かす
+  function move(g, src, dst) {
+    if (!canMove(g, src, dst)) return false;
+    let count = 1;
+    let tile;
+    if (src.col !== undefined) {
+      const col = g.columns[src.col];
+      if (dst.col !== undefined) count = Math.min(runLength(g, src.col), CAP - g.columns[dst.col].length);
+      tile = col[col.length - 1][0];
+      col.length -= count;
+      if (col.length) col[col.length - 1][1] = true;
+    } else {
+      tile = g.slots[src.slot];
+      g.slots[src.slot] = null;
+    }
+    if (dst.col !== undefined) {
+      for (let n = 0; n < count; n++) g.columns[dst.col].push([tile, true]);
+    } else {
+      g.slots[dst.slot] = tile;
+      g.used[dst.slot] = true;
+      g.uses++;
+    }
+    g.moves++;
+    return true;
+  }
+</script>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const SAVE_KEY = "tenshin-narabe";
+  let game, best = null, selected = null, opened = null;
+
+  function save() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ game, best })); } catch (e) { /* 保存できなくても遊べる */ }
+  }
+  function load() {
+    try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; }
+  }
+  const newSeed = () => Math.floor(Math.random() * 1e9);
+  const picture = kind => `<svg role="img" aria-label="${kind === null ? "ふた" : KINDS[kind]}"><use href="#${kind === null ? "lid" : "d" + kind}"/></svg>`;
+
+  function fit() {
+    const board = $("board");
+    const width = board.clientWidth;
+    const cw = Math.min((width - 9 * 3) / COLS, 60);
+    const ch = Math.max(20, Math.min(board.clientHeight / CAP, cw * 1.25));
+    document.documentElement.style.setProperty("--cw", cw + "px");
+    document.documentElement.style.setProperty("--ch", ch + "px");
+  }
+
+  function render() {
+    const valid = selected ? allSpots().filter(t => canMove(game, selected, t)) : [];
+    const isValid = s => valid.some(t => same(t, s));
+
+    $("slots").innerHTML = game.slots.map((tile, i) => {
+      const spot = { slot: i };
+      const lifted = same(selected, spot) ? " lifted" : "";
+      const label = tile === null ? `お盆 ${i + 1} 空き` : `お盆 ${i + 1} ${KINDS[tile]}`;
+      return `<button type="button" class="slot${game.used[i] ? " used" : ""}${tile === null ? "" : " has"}" data-slot="${i}" aria-label="${label}">
+        <span class="num">${i + 1}</span>
+        ${tile === null ? (isValid(spot) ? '<span class="spot"></span>' : "") : `<span class="tile${lifted}">${picture(tile)}</span>`}
+      </button>`;
+    }).join("");
+
+    $("board").innerHTML = game.columns.map((col, i) => {
+      const spot = { col: i };
+      const lifted = same(selected, spot) ? runLength(game, i) : 0;
+      const tiles = col.map(([kind, up], r) => {
+        const cls = (r >= col.length - lifted ? " lifted" : "") + (opened === i && r === col.length - 1 ? " open" : "");
+        return `<span class="tile${cls}">${picture(up ? kind : null)}</span>`;
+      }).join("");
+      const topName = col.length ? KINDS[col[col.length - 1][0]] : "空き";
+      return `<button type="button" class="col" data-col="${i}" aria-label="${i + 1} 列目 ${col.length} 枚 一番上は${topName}">
+        ${tiles}${isValid(spot) ? '<span class="spot"></span>' : ""}
+      </button>`;
+    }).join("");
+    opened = null;
+
+    $("uses").textContent = game.uses;
+    $("moves").textContent = game.moves;
+    $("best").textContent = best === null ? "–" : best;
+
+    if (selected) {
+      const name = KINDS[topOf(game, selected)];
+      const n = selected.col !== undefined ? runLength(game, selected.col) : 1;
+      $("status").textContent = `${name}${n > 1 ? ` ${n} 枚` : ""}の置き先を選んでください`;
+    } else {
+      $("status").textContent = "動かす点心をタップ";
+    }
+
+    if (solved(game)) {
+      showResult(`完成！ お盆 ${game.uses} 回`, `手数は ${game.moves} です。お盆を使う回数が少ないほど上手です。`);
+    } else if (stuck(game)) {
+      showResult("動かせる点心がなくなりました", "やり直すか、新しい配置で遊んでください。");
+    }
+  }
+
+  function showSheet(html) {
+    $("sheet").innerHTML = `<div class="card">${html}</div>`;
+    $("sheet").hidden = false;
+  }
+  function hideSheet() { $("sheet").hidden = true; }
+
+  function showResult(title, text) {
+    showSheet(`<h2>${title}</h2><p>${text}</p>
+      <div class="bar"><button type="button" class="primary" data-act="fresh">新しい配置</button><button type="button" data-act="restart">やり直す</button></div>`);
+  }
+
+  function showRules() {
+    const menu = KINDS.map((name, k) => `<span>${picture(k)}${name}</span>`).join("");
+    showSheet(`<h2>遊び方</h2>
+      <ul>
+        <li>同じ点心を 1 列に 12 個そろえると完成です。</li>
+        <li>動かせるのは一番上の点心です。ふたは、上の蒸籠をどかすと開きます。</li>
+        <li>置けるのは、空の列か、一番上が同じ点心の列です。つながった同じ点心はまとめて動きます。</li>
+        <li>お盆にはいつでも 1 個ずつ置けます。使う回数が少ないほど上手です。一度使ったお盆は赤くなります。</li>
+      </ul>
+      <div class="menu">${menu}</div>
+      <div class="bar"><button type="button" class="primary" data-act="close">閉じる</button></div>`);
+  }
+
+  function startDeal(seed) {
+    game = deal(seed);
+    selected = null;
+    hideSheet();
+    save();
+    render();
+  }
+
+  function tap(target) {
+    if (!target || same(target, selected)) {
+      selected = null;
+    } else if (selected && canMove(game, selected, target)) {
+      const from = selected;
+      const hidden = from.col !== undefined && game.columns[from.col].length > runLength(game, from.col)
+        && !game.columns[from.col][game.columns[from.col].length - 1 - runLength(game, from.col)][1];
+      move(game, from, target);
+      if (hidden) opened = from.col;
+      selected = null;
+      if (solved(game) && !game.scored) {
+        game.scored = true;
+        if (best === null || game.uses < best) best = game.uses;
+      }
+      save();
+    } else {
+      selected = topOf(game, target) !== null ? target : null;
+    }
+    render();
+  }
+
+  $("board").addEventListener("click", e => {
+    const el = e.target.closest("[data-col]");
+    tap(el ? { col: Number(el.dataset.col) } : null);
+  });
+  $("slots").addEventListener("click", e => {
+    const el = e.target.closest("[data-slot]");
+    tap(el ? { slot: Number(el.dataset.slot) } : null);
+  });
+  $("restart").addEventListener("click", () => startDeal(game.seed));
+  $("fresh").addEventListener("click", () => startDeal(newSeed()));
+  $("rules").addEventListener("click", showRules);
+  $("sheet").addEventListener("click", e => {
+    const act = e.target.dataset && e.target.dataset.act;
+    if (act === "fresh") startDeal(newSeed());
+    if (act === "restart") startDeal(game.seed);
+    if (act === "close") hideSheet();
+  });
+
+  function start(data) {
+    const saved = data && data.game ? data : load();
+    if (saved && saved.game) {
+      game = saved.game;
+      best = saved.best === undefined ? null : saved.best;
+    } else {
+      game = deal(newSeed());
+    }
+    fit();
+    render();
+    new ResizeObserver(() => { fit(); }).observe($("app"));
+  }
+
+  window.claude?.hot?.snapshot?.(() => ({ game, best }));
+  window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
